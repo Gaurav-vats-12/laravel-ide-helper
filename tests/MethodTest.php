@@ -62,7 +62,7 @@ DOC;
         $reflectionClass = new \ReflectionClass(EloquentBuilder::class);
         $reflectionMethod = $reflectionClass->getMethod('with');
 
-        $method = new Method($reflectionMethod, 'Builder', $reflectionClass);
+        $method = new Method($reflectionMethod, 'Builder', $reflectionClass, null, [], [], ['$this' => EloquentBuilder::class . '|static']);
 
         $expectedDocComment =  <<<'DOC'
 /**
@@ -92,7 +92,7 @@ DOC;
         $reflectionClass = new \ReflectionClass(QueryBuilder::class);
         $reflectionMethod = $reflectionClass->getMethod('whereNull');
 
-        $method = new Method($reflectionMethod, 'Builder', $reflectionClass);
+        $method = new Method($reflectionMethod, 'Builder', $reflectionClass, null, [], [], ['$this' => EloquentBuilder::class . '|static']);
 
         $expectedDocComment =  <<<'DOC'
 /**
