@@ -17,8 +17,6 @@ use Barryvdh\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use Barryvdh\Reflection\DocBlock\Tag;
 use Barryvdh\Reflection\DocBlock\Tag\ParamTag;
 use Barryvdh\Reflection\DocBlock\Tag\ReturnTag;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Str;
 
 class Method
 {
@@ -39,6 +37,7 @@ class Method
     protected $return = null;
     protected $root;
     protected $classAliases;
+    protected $replaceReturnTypes;
 
     /**
      * @param \ReflectionMethod|\ReflectionFunctionAbstract $method
@@ -47,8 +46,9 @@ class Method
      * @param string|null $methodName
      * @param array $interfaces
      * @param array $classAliases
+     * @param array $replaceReturnTypes
      */
-    public function __construct($method, $alias, $class, $methodName = null, $interfaces = [], array $classAliases = [])
+    public function __construct($method, $alias, $class, $methodName = null, $interfaces = [], array $classAliases = [], $replaceReturnTypes = [])
     {
         $this->method = $method;
         $this->interfaces = $interfaces;
@@ -65,6 +65,7 @@ class Method
 
         //Normalize the description and inherit the docs from parents/interfaces
         try {
+            $this->setReplaceReturnTypes($replaceReturnTypes);
             $this->normalizeParams($this->phpdoc);
             $this->normalizeReturn($this->phpdoc);
             $this->normalizeDescription($this->phpdoc);
@@ -181,6 +182,33 @@ class Method
     }
 
     /**
+     * @return string|null
+     */
+    public function getReturn()
+    {
+        return $this->return;
+    }
+
+    /**
+     * @param DocBlock|null $phpdoc
+     * @return ReturnTag|null
+     */
+    public function getReturnTag($phpdoc = null)
+    {
+        if ($phpdoc === null) {
+            $phpdoc = $this->phpdoc;
+        }
+
+        $returnTags = $phpdoc->getTagsByName('return');
+
+        if (count($returnTags) === 0) {
+            return null;
+        }
+
+        return reset($returnTags);
+    }
+
+    /**
      * Get the parameters for this method including default values
      *
      * @param bool $implode Wether to implode the array or not
@@ -247,6 +275,15 @@ class Method
         }
     }
 
+    protected function setReplaceReturnTypes($replaceReturnTypes)
+    {
+        if (!array_key_exists('$this', $replaceReturnTypes)) {
+            $replaceReturnTypes['$this'] = $this->root;
+        }
+
+        $this->replaceReturnTypes = $replaceReturnTypes;
+    }
+
     /**
      * Normalize the return tag (make full namespace, replace interfaces)
      *
@@ -255,15 +292,13 @@ class Method
     protected function normalizeReturn(DocBlock $phpdoc)
     {
         //Get the return type and adjust them for better autocomplete
-        $returnTags = $phpdoc->getTagsByName('return');
+        $tag = $this->getReturnTag($phpdoc);
 
-        if (count($returnTags) === 0) {
+        if ($tag === null) {
             $this->return = null;
             return;
         }
 
-        /** @var ReturnTag $tag */
-        $tag = reset($returnTags);
         // Get the expanded type
         $returnValue = $tag->getType();
 
@@ -276,10 +311,8 @@ class Method
         $tag->setContent($returnValue . ' ' . $tag->getDescription());
         $this->return = $returnValue;
 
-        if ($tag->getType() === '$this') {
-            Str::contains($this->root, Builder::class)
-                ? $tag->setType($this->root . '|static')
-                : $tag->setType($this->root);
+        if (array_key_exists($tag->getType(), $this->replaceReturnTypes)) {
+            $tag->setType($this->replaceReturnTypes[$tag->getType()]);
         }
     }
 
